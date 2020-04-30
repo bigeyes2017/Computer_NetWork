@@ -1,7 +1,8 @@
 //#include <stdlib.h>
 #include <Winsock.h>
 #pragma comment(lib,"ws2_32.lib")
-
+#include <stdlib.h>
+#include <string>
 #include <iostream>
 using namespace std;
 
@@ -21,7 +22,7 @@ int main()
             cout << "系统配置问题，请检查ws2_32.lib是否在工作目录" << endl;
             break;
         case WSAVERNOTSUPPORTED:
-            cout << "网络库版本号不支持" << endl;
+            cout << "服务器：网络库版本号不支持" << endl;
             break;
         case WSAEINPROGRESS:
             cout << "服务器忙" << endl;
@@ -30,7 +31,7 @@ int main()
             cout << "Windows套接字实现所支持的任务数量已达到限制。请关闭不必要软件" << endl;
             break;
         case WSAEFAULT:
-            cout << "网络库启动第二个参数错了" << endl;
+            cout << "服务器：网络库启动第二个参数错了" << endl;
             break;
         default:
             break;
@@ -50,7 +51,7 @@ int main()
 
     if (INVALID_SOCKET == sockServer) {
         int a = WSAGetLastError();  //0--success
-        cout << "服务器端创建socket失败：" << a << endl;
+        cout << "服务器：创建socket失败：" << a << endl;
 
         WSACleanup();
         return 0;
@@ -71,7 +72,7 @@ int main()
     if (SOCKET_ERROR == bres) {
         int a = WSAGetLastError();
 
-        cout << "服务器端bind失败：" << a << endl;
+        cout << "服务器：bind失败：" << a << endl;
 
         closesocket(sockServer);
         WSACleanup();
@@ -85,7 +86,7 @@ int main()
     if (SOCKET_ERROR == lres) {
         int a = WSAGetLastError();
 
-        cout << "服务器端listen失败(无法获得用户连接)：" << a << endl;
+        cout << "服务器：listen失败(无法获得用户连接)：" << a << endl;
 
         closesocket(sockServer);
         WSACleanup();
@@ -93,54 +94,132 @@ int main()
     }
     cout << "服务器端已启动..." << endl;
 
-    //接受连接，创建一个socket客户端，会阻塞
-    SOCKADDR_IN cAddr;
-    int cAddrlen = sizeof(cAddr);
-    SOCKET sockClient = accept(sockServer, (SOCKADDR*)&cAddr, &cAddrlen);
 
-    if (INVALID_SOCKET == sockClient) {
-        int a = WSAGetLastError();
+    fd_set allsocks;
+    FD_ZERO(&allsocks);
+    FD_SET(sockServer, &allsocks);
 
-        cout << "创建sockClient失败：" << a << endl;
+    timeval find_time = { 3,0 };
+    timeval clear_time{ 0,0 };
 
-        closesocket(sockServer);
-        WSACleanup();
-        return 0;
-    }
-
-    //与客户端通信:收,会阻塞
-
-    char buf[1500];
-    int rres = recv(sockClient, buf, sizeof(buf) - 1, 0);
-
-    if (SOCKET_ERROR == rres) {
-
-        int a = WSAGetLastError();
-        cout << "服务器recv错误：" << a << endl;
-    }
-    else if (0 == rres)
+    while (true)
     {
-        cout << "客户端掉线" << endl;
+        fd_set acptReadSocks = allsocks;
+        fd_set errSocks = allsocks;
+
+        int se_Res = select(0, &acptReadSocks, NULL, &errSocks, &find_time);
+        //关闭客户端仍然返回1个recv事件。
+
+        if (0 == se_Res) {      /*没有recv，accept,继续寻找*/
+            continue;
+        }
+        else if (SOCKET_ERROR == se_Res)
+        {
+            int a = WSAGetLastError();
+            cout << "服务器端：" << a << endl;
+            //continue;
+        }
+        else
+        {
+            if (acptReadSocks.fd_count) {
+                SOCKET  tempsock;
+                for (u_int i = 0; i < acptReadSocks.fd_count; i++)
+                {
+                    tempsock = acptReadSocks.fd_array[i];
+
+                    if (tempsock == sockServer) {
+                        //接收新客户端.若带地址信息:SOCKADDR_IN cAddr;int cAddrlen = sizeof(cAddr);
+
+                        SOCKET sockClient = accept(sockServer, NULL, NULL);
+                        if (sockClient == INVALID_SOCKET) {
+                            cout << "服务器：无法连接客户端" << endl;
+                        }
+                        else
+                        {
+
+                            FD_SET(sockClient, &allsocks);
+                            cout << "服务器：置入" << sockClient << endl;
+
+                        }
+                    }
+                    else {  //处理recv，或者关于客户端的关闭！！
+
+                        char buf[1500] = { 0 };
+
+                        int rRes = recv(tempsock, buf, sizeof(buf) - 1, 0);
+                        if (SOCKET_ERROR == rRes) { /*可能需要关闭链接*/
+                            int a = WSAGetLastError();
+                            cout << "服务器：" << tempsock << "recv错误" << a << endl;
+
+                            if (10054 == a) {
+                                cout << "服务器：客户端手动关闭" << endl;
+                                closesocket(tempsock);
+                                FD_CLR(tempsock, &allsocks);
+                            }                            
+                        }
+                        else if (0 == rRes) {       /*正常关闭连接*/
+                            cout << "服务器：客户端退出" << endl;
+
+                            closesocket(tempsock);
+                            FD_CLR(tempsock, &allsocks);
+                        }
+                        else
+                        {
+                            cout << "服务器收到（" << rRes << "）:" << buf << endl;
+                        }
+                    }
+                }
+            }
+            else if(errSocks.fd_count){ //管的方面这里没法测
+                for (int i = 0; i < errSocks.fd_count ; i++)
+                {
+                    char optdata[100] = { 0 };
+                    int optlen = sizeof(optdata) - 1;       
+
+                    int erRes = getsockopt(errSocks.fd_array[i],
+                        SOL_SOCKET, SO_ERROR,
+                        optdata, &optlen
+                    );
+                    if (SOCKET_ERROR == erRes) {
+                        cout << "获取错误信息失败" << endl;
+                    }
+                    else
+                    {
+                        cout << "SOCKET  :" << errSocks.fd_array[i] <<
+                                "错误信息:" << optdata << endl;
+                    }
+
+
+                } 
+            }
+
+
+        }
+
+       /* string str;        getline(cin, str);
+        for (u_int i = 0; i < allsocks.fd_count; i++)
+        {
+            SOCKET tempsock = acptReadSocks.fd_array[i];
+            if (tempsock != sockServer) {
+                int sRes = send(tempsock, str.c_str(), str.size(), 0);
+
+                if (SOCKET_ERROR == sRes) {
+                    int a = WSAGetLastError();
+                    cout << "服务器send错误:" << a << endl;
+                }
+            }
+        }*/
+
     }
-    else {
-        cout << rres << ":" << buf << endl;
+
+
+
+    for (u_int i = 0; i < allsocks.fd_count; i++)
+    {
+        closesocket(allsocks.fd_array[i]);
     }
-
-    //与客户端通信：发
-    char sbuf[] = "已收到数据.";
-
-    int sres = send(sockClient, sbuf, sizeof(sbuf), 0);
-    if (SOCKET_ERROR == sres) {
-
-        int a = WSAGetLastError();
-        cout << "服务器send错误:" << a << endl;
-
-    }
-
-    cin.get();
-
-    closesocket(sockClient);
-    closesocket(sockServer);
+    ////FD_ZERO(&allsocks);
+    //closesocket(sockServer);若已经置入allsocks，则无需单独关闭服务器socket
     WSACleanup();
     return 0;
 }

@@ -60,14 +60,14 @@ int main()
             cout << "客户端连接出错：" << a << endl;
             break;
         }
-        
+
         closesocket(sockServer);
         WSACleanup();
         return 0;
 
     }
     //    发送消息
-    char c[] = "你好!\n这里是客户端。";
+    char c[] = "你好，这里是客户端。";
     int sres = send(sockServer, c, sizeof(c), 0);
     if (SOCKET_ERROR == sres) {
         int a = WSAGetLastError();
@@ -78,7 +78,7 @@ int main()
     }
 
     char buf[1024];
-    int rres = recv(sockServer, buf, sizeof(buf)-1,0);
+    int rres = recv(sockServer, buf, sizeof(buf) - 1, 0);
     if (SOCKET_ERROR == rres) {
         int a = WSAGetLastError();
         cout << "客户端：接收失败" << a << endl;
@@ -89,9 +89,9 @@ int main()
     }
     else
     {
-        cout<<"客户端收到：\n"<<buf<<endl;
+        cout << "客户端收到：" << buf << endl;
     }
-    
+
 
     cin.get();
     closesocket(sockServer);
