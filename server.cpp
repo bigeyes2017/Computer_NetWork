@@ -6,9 +6,27 @@
 #include <iostream>
 using namespace std;
 
+fd_set allsocks;
+
+
+BOOL WINAPI funClear(DWORD CtrlType) {
+    switch (CtrlType)
+    {
+    case CTRL_CLOSE_EVENT:
+        for (u_int i = 0; i < allsocks.fd_count; i++)
+        {
+            closesocket(allsocks.fd_array[i]);
+        }
+        WSACleanup();
+    default:
+        break;
+    }
+    return true;
+}
 
 int main()
 {
+    SetConsoleCtrlHandler(funClear, true);
     //打开网络库
     WORD wdVersion = MAKEWORD(2, 2);
     WSADATA wdSockMsg;
@@ -95,7 +113,7 @@ int main()
     cout << "服务器端已启动..." << endl;
 
 
-    fd_set allsocks;
+    //fd_set allsocks;
     FD_ZERO(&allsocks);
     FD_SET(sockServer, &allsocks);
 
@@ -188,38 +206,17 @@ int main()
                         cout << "SOCKET  :" << errSocks.fd_array[i] <<
                                 "错误信息:" << optdata << endl;
                     }
-
-
                 } 
             }
-
-
-        }
-
-       /* string str;        getline(cin, str);
-        for (u_int i = 0; i < allsocks.fd_count; i++)
-        {
-            SOCKET tempsock = acptReadSocks.fd_array[i];
-            if (tempsock != sockServer) {
-                int sRes = send(tempsock, str.c_str(), str.size(), 0);
-
-                if (SOCKET_ERROR == sRes) {
-                    int a = WSAGetLastError();
-                    cout << "服务器send错误:" << a << endl;
-                }
-            }
-        }*/
-
+        }    
     }
-
 
 
     for (u_int i = 0; i < allsocks.fd_count; i++)
     {
         closesocket(allsocks.fd_array[i]);
     }
-    ////FD_ZERO(&allsocks);
-    //closesocket(sockServer);若已经置入allsocks，则无需单独关闭服务器socket
+
     WSACleanup();
     return 0;
 }
