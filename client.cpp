@@ -1,6 +1,6 @@
 #if 0
 #include <iostream>
-#include "winsock.h"
+#include "winsock2.h"
 #include <string>
 #pragma comment(lib,"ws2_32.lib")
 
