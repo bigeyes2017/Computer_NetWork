@@ -1,3 +1,4 @@
+#if 0
 #include <Winsock2.h>
 #pragma comment(lib,"ws2_32.lib")
 #include <stdlib.h>
@@ -241,3 +242,4 @@ int main()
     cin.get();
     return 0;
 }
+#endif

@@ -138,8 +138,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AsyncSelect.cpp" />
     <ClCompile Include="client.cpp" />
     <ClCompile Include="server.cpp" />
+    <ClCompile Include="win32Wnd.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="server.h" />
